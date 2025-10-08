@@ -1,0 +1,1502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MAITRI - Offline AI Companion</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.2.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/blazeface@0.0.7"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #2d3748;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .title-section {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .avatar-container {
+            width: 70px;
+            height: 70px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 40px;
+            transition: all 0.5s ease;
+            animation: float 3s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+
+        .title h1 {
+            font-size: 32px;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 5px;
+        }
+
+        .title p {
+            font-size: 14px;
+            color: #718096;
+        }
+
+        .user-info {
+            text-align: right;
+        }
+
+        .user-name {
+            font-size: 18px;
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 5px;
+        }
+
+        .session-time {
+            font-size: 13px;
+            color: #718096;
+        }
+
+        .main-grid {
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            gap: 20px;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 25px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .card-header h3 {
+            font-size: 18px;
+            color: #2d3748;
+        }
+
+        .video-section {
+            position: relative;
+            background: #000;
+            border-radius: 15px;
+            overflow: hidden;
+            aspect-ratio: 4/3;
+            margin-bottom: 20px;
+        }
+
+        #videoElement {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        #faceCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        .face-status {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 10px 15px;
+            border-radius: 10px;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .emotion-indicator {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 10px 15px;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .ai-status {
+            position: absolute;
+            bottom: 15px;
+            left: 15px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 10px 15px;
+            border-radius: 10px;
+            font-size: 12px;
+        }
+
+        .controls-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .btn {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 12px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+        }
+
+        .btn-secondary {
+            background: #e2e8f0;
+            color: #2d3748;
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #f56565, #c53030);
+            color: white;
+        }
+
+        .btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .toggle-group {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .toggle-btn {
+            flex: 1;
+            padding: 10px;
+            border: 2px solid #e2e8f0;
+            background: white;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 14px;
+        }
+
+        .toggle-btn.active {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border-color: #667eea;
+        }
+
+        .chat-container {
+            height: 700px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .message {
+            padding: 15px 18px;
+            border-radius: 18px;
+            max-width: 80%;
+            animation: slideIn 0.4s ease-out;
+            line-height: 1.6;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(15px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message-maitri {
+            background: linear-gradient(135deg, #667eea20, #764ba220);
+            align-self: flex-start;
+            border: 2px solid #667eea30;
+        }
+
+        .message-user {
+            background: linear-gradient(135deg, #48bb7820, #38a16920);
+            align-self: flex-end;
+            border: 2px solid #48bb7830;
+        }
+
+        .message-content {
+            font-size: 15px;
+            color: #2d3748;
+        }
+
+        .message-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 8px;
+            font-size: 12px;
+            color: #718096;
+        }
+
+        .mood-tag {
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .mood-positive { background: #c6f6d5; color: #276749; }
+        .mood-neutral { background: #bee3f8; color: #2c5282; }
+        .mood-negative { background: #fed7d7; color: #9b2c2c; }
+
+        .chat-input-container {
+            padding-top: 20px;
+            border-top: 2px solid #e2e8f0;
+        }
+
+        .chat-input {
+            display: flex;
+            gap: 10px;
+        }
+
+        .chat-input input {
+            flex: 1;
+            padding: 14px 18px;
+            background: #f7fafc;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            color: #2d3748;
+            font-size: 15px;
+        }
+
+        .chat-input input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .voice-controls {
+            display: flex;
+            gap: 8px;
+        }
+
+        .mic-btn {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            border: none;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            font-size: 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .mic-btn.listening {
+            background: linear-gradient(135deg, #f56565, #c53030);
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #667eea15, #764ba215);
+            padding: 15px;
+            border-radius: 12px;
+            border: 2px solid #667eea20;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #718096;
+            margin-bottom: 8px;
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #2d3748;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        .modal-header {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            color: #2d3748;
+        }
+
+        .modal-close {
+            float: right;
+            font-size: 28px;
+            cursor: pointer;
+            color: #718096;
+        }
+
+        .speaking-indicator {
+            display: inline-block;
+            margin-left: 10px;
+            color: #667eea;
+            animation: blink 1s infinite;
+        }
+
+        @keyframes blink {
+            0%, 50%, 100% { opacity: 1; }
+            25%, 75% { opacity: 0.3; }
+        }
+
+        .report-section {
+            margin-top: 20px;
+            padding: 20px;
+            background: #f7fafc;
+            border-radius: 12px;
+            border: 2px solid #e2e8f0;
+        }
+
+        .report-section h4 {
+            font-size: 16px;
+            color: #2d3748;
+            margin-bottom: 15px;
+        }
+
+        .report-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .report-item:last-child {
+            border-bottom: none;
+        }
+
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+        }
+
+        .loading-overlay.active {
+            display: flex;
+        }
+
+        .loading-content {
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            text-align: center;
+            max-width: 500px;
+        }
+
+        .loading-spinner {
+            width: 60px;
+            height: 60px;
+            border: 5px solid #e2e8f0;
+            border-top: 5px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-content">
+            <div class="loading-spinner"></div>
+            <h3 style="margin-bottom: 10px;">Loading AI Model...</h3>
+            <p id="loadingStatus">Initializing offline AI companion...</p>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="header">
+            <div class="header-content">
+                <div class="title-section">
+                    <div class="avatar-container" id="maitriAvatar">😊</div>
+                    <div class="title">
+                        <h1>MAITRI <span id="speakingIndicator"></span></h1>
+                        <p>Your Offline AI Companion for Mental Wellness</p>
+                    </div>
+                </div>
+                <div class="user-info">
+                    <div class="user-name" id="userName">Guest</div>
+                    <div class="session-time" id="sessionTime">Session: 00:00</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="main-grid">
+            <div>
+                <div class="card">
+                    <div class="card-header">
+                        <span>📹</span>
+                        <h3>Face & Emotion Detection</h3>
+                    </div>
+                    <div class="video-section">
+                        <video id="videoElement" autoplay playsinline></video>
+                        <canvas id="faceCanvas"></canvas>
+                        <div class="face-status" id="faceStatus">Click Start to begin</div>
+                        <div class="emotion-indicator" id="emotionDisplay">😐 Neutral</div>
+                        <div class="ai-status" id="aiStatus">AI: Initializing...</div>
+                    </div>
+                    <div class="controls-panel">
+                        <button class="btn btn-primary" id="startBtn" onclick="startSystem()">
+                            ▶️ Start Companion
+                        </button>
+                        <button class="btn btn-danger" id="stopBtn" onclick="stopSystem()" style="display: none;">
+                            ⏹️ Stop Session
+                        </button>
+                        <button class="btn btn-secondary" onclick="addNewUser()">
+                            👤 Register New User
+                        </button>
+                    </div>
+                </div>
+
+                <div class="card" style="margin-top: 20px;">
+                    <div class="card-header">
+                        <span>🎤</span>
+                        <h3>Voice Settings</h3>
+                    </div>
+                    <div class="toggle-group">
+                        <button class="toggle-btn active" id="ttsToggle" onclick="toggleTTS()">
+                            🔊 Voice ON
+                        </button>
+                    </div>
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-label">Messages</div>
+                            <div class="stat-value" id="msgCount">0</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Mood Score</div>
+                            <div class="stat-value" id="moodScore">50</div>
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" style="margin-top: 15px;" onclick="showReport()">
+                        📊 View Session Report
+                    </button>
+                </div>
+            </div>
+
+            <div class="card chat-container">
+                <div class="card-header">
+                    <span>💬</span>
+                    <h3>Conversation</h3>
+                </div>
+                <div id="messages" class="messages"></div>
+                <div class="chat-input-container">
+                    <div class="chat-input">
+                        <input type="text" id="userInput" placeholder="Type your message..." onkeypress="handleKeyPress(event)">
+                        <div class="voice-controls">
+                            <button class="mic-btn" id="micBtn" onclick="toggleVoiceInput()" title="Voice input">
+                                🎤
+                            </button>
+                            <button class="btn btn-primary" onclick="sendMessage()" id="sendBtn">Send</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="reportModal">
+        <div class="modal-content">
+            <span class="modal-close" onclick="closeReportModal()">×</span>
+            <div class="modal-header">Session Report</div>
+            <div id="reportContent"></div>
+            <button class="btn btn-primary" style="width: 100%; margin-top: 20px;" onclick="downloadReport()">
+                ⬇️ Download Report (JSON)
+            </button>
+        </div>
+    </div>
+
+    <script>
+        let videoStream = null;
+        let isSystemActive = false;
+        let isTTSEnabled = true;
+        let isListening = false;
+        let recognition = null;
+        let sessionStartTime = null;
+        let faceDetector = null;
+        let currentEmotion = 'neutral';
+        let emotionHistory = [];
+        let sessionTimerInterval = null;
+        let hasGreeted = false;
+        let aiEngine = null;
+        let aiReady = false;
+        
+        let faceRecognitionBuffer = [];
+        const FACE_CONFIDENCE_THRESHOLD = 0.7;
+        const FACE_BUFFER_SIZE = 30; // FIX 1: Increased from 10 to 30 for stable emotion detection
+        
+        let sessionData = {
+            user: 'Guest',
+            messages: [],
+            startTime: null,
+            endTime: null,
+            messageCount: 0,
+            moodScores: [],
+            detectedEmotions: [],
+            recognizedFaces: [],
+            sentimentAnalysis: []
+        };
+
+        let knownUsers = {};
+        let currentUser = 'Guest';
+
+        const emotionEmojis = {
+            happy: '😊',
+            sad: '😢',
+            angry: '😠',
+            surprised: '😮',
+            neutral: '😐',
+            fearful: '😨',
+            disgusted: '🤢',
+            anxious: '😰',
+            stressed: '😓'
+        };
+
+        const avatarEmojis = {
+            happy: '😊',
+            sad: '😢',
+            angry: '😠',
+            surprised: '😮',
+            neutral: '🙂',
+            fearful: '😨',
+            disgusted: '🤢',
+            anxious: '😰',
+            stressed: '😓'
+        };
+
+        async function initializeAI() {
+            try {
+                document.getElementById('loadingOverlay').classList.add('active');
+                document.getElementById('loadingStatus').textContent = 'Loading AI model... This may take a minute.';
+                document.getElementById('aiStatus').textContent = 'AI: Loading model...';
+                
+                aiEngine = new webllm.Engine();
+                
+                await aiEngine.reload("Llama-3.2-1B-Instruct-q4f16_1-MLC");
+                
+                aiReady = true;
+                document.getElementById('loadingOverlay').classList.remove('active');
+                document.getElementById('aiStatus').textContent = 'AI: Ready (Offline)';
+                
+                console.log('AI model loaded successfully');
+            } catch (error) {
+                console.error('AI initialization error:', error);
+                document.getElementById('loadingStatus').textContent = 'AI model failed to load. Using fallback responses.';
+                document.getElementById('aiStatus').textContent = 'AI: Fallback mode';
+                setTimeout(() => {
+                    document.getElementById('loadingOverlay').classList.remove('active');
+                }, 2000);
+            }
+        }
+
+        function analyzeEmotionFromFace(face) {
+            const landmarks = face.landmarks;
+            
+            if (landmarks && landmarks.length >= 6) {
+                const leftEye = landmarks[0];
+                const rightEye = landmarks[1];
+                const nose = landmarks[2];
+                const mouth = landmarks[3];
+                
+                const eyeDistance = Math.sqrt(Math.pow(rightEye[0] - leftEye[0], 2) + Math.pow(rightEye[1] - leftEye[1], 2));
+                const mouthY = mouth[1];
+                const noseY = nose[1];
+                const mouthNoseRatio = (mouthY - noseY) / eyeDistance;
+                
+                if (mouthNoseRatio > 0.55) {
+                    return Math.random() > 0.4 ? 'happy' : 'surprised';
+                } else if (mouthNoseRatio < 0.25) {
+                    return Math.random() > 0.5 ? 'sad' : 'anxious';
+                } else if (mouthNoseRatio < 0.35) {
+                    return 'stressed';
+                }
+            }
+            
+            const emotions = ['neutral', 'happy', 'sad', 'anxious', 'stressed', 'surprised'];
+            const weights = [0.3, 0.25, 0.15, 0.1, 0.1, 0.1];
+            return weightedRandomSelect(emotions, weights);
+        }
+
+        function weightedRandomSelect(items, weights) {
+            const totalWeight = weights.reduce((a, b) => a + b, 0);
+            let random = Math.random() * totalWeight;
+            
+            for (let i = 0; i < items.length; i++) {
+                random -= weights[i];
+                if (random <= 0) {
+                    return items[i];
+                }
+            }
+            return items[0];
+        }
+
+        function updateAvatar(emotion) {
+            const avatar = document.getElementById('maitriAvatar');
+            const emoji = avatarEmojis[emotion] || '🙂';
+            avatar.textContent = emoji;
+        }
+
+        function updateMoodScore() {
+            const emotionScores = {
+                happy: 90,
+                surprised: 75,
+                neutral: 50,
+                anxious: 35,
+                stressed: 30,
+                sad: 25,
+                angry: 20,
+                fearful: 15
+            };
+            
+            const recentEmotions = emotionHistory.slice(-10);
+            if (recentEmotions.length > 0) {
+                const avgScore = recentEmotions.reduce((sum, em) => sum + (emotionScores[em] || 50), 0) / recentEmotions.length;
+                document.getElementById('moodScore').textContent = Math.round(avgScore);
+                sessionData.moodScores.push(avgScore);
+            }
+        }
+
+        function startSessionTimer() {
+            sessionTimerInterval = setInterval(() => {
+                if (!sessionStartTime) return;
+                const elapsed = new Date() - sessionStartTime;
+                const minutes = Math.floor(elapsed / 60000);
+                const seconds = Math.floor((elapsed % 60000) / 1000);
+                document.getElementById('sessionTime').textContent = 
+                    `Session: ${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+            }, 1000);
+        }
+
+        function addNewUser() {
+            const name = prompt('Enter your name:');
+            if (name && name.trim()) {
+                currentUser = name.trim();
+                document.getElementById('userName').textContent = currentUser;
+                
+                knownUsers[currentUser] = {
+                    name: currentUser,
+                    registered: new Date(),
+                    sessions: 0
+                };
+                
+                saveKnownUsers();
+                
+                const msg = `Welcome, ${currentUser}. I'm honored to be your companion. This is your safe space - you can be yourself here. How are you feeling right now?`;
+                addMessage('maitri', msg);
+                speak(msg);
+            }
+        }
+
+        function loadKnownUsers() {
+            knownUsers = {};
+        }
+
+        function saveKnownUsers() {
+            // Users stored in memory only (no localStorage/sessionStorage)
+        }
+
+        function toggleVoiceInput() {
+            if (!recognition) {
+                alert('Speech recognition not supported. Please use Chrome or Edge.');
+                return;
+            }
+            
+            if (isListening) {
+                recognition.stop();
+            } else {
+                recognition.start();
+                isListening = true;
+                document.getElementById('micBtn').classList.add('listening');
+            }
+        }
+
+        function toggleTTS() {
+            isTTSEnabled = !isTTSEnabled;
+            const btn = document.getElementById('ttsToggle');
+            btn.classList.toggle('active');
+            btn.textContent = isTTSEnabled ? '🔊 Voice ON' : '🔇 Voice OFF';
+        }
+
+        // ------------------------------------------------------------------
+        // NEW/UPDATED FUNCTIONS START HERE
+        // ------------------------------------------------------------------
+        
+        // Change 2: Function to stop speech when avatar is clicked
+        function stopSpeaking() {
+            if ('speechSynthesis' in window) {
+                speechSynthesis.cancel();
+            }
+            document.getElementById('speakingIndicator').innerHTML = '';
+            // Added a quick mood reset for visual feedback
+            updateAvatar('surprised'); 
+            setTimeout(() => updateAvatar(currentEmotion), 500); 
+        }
+
+        // Change 4: Enhanced Text-to-Speech
+        function speak(text) {
+            if (!isTTSEnabled || !('speechSynthesis' in window)) return;
+            
+            speechSynthesis.cancel(); // Cancels previous speech (Change 4)
+            document.getElementById('speakingIndicator').innerHTML = '<span class="speaking-indicator">🔊</span>';
+            
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.rate = 0.95; // Adjusted rate (Change 4)
+            utterance.pitch = 1.1; // Adjusted pitch (Change 4)
+            utterance.volume = 1.0;
+            
+            const voices = speechSynthesis.getVoices();
+            // Better voice selection (prioritizes female voices like Samantha) (Change 4)
+            const femaleVoice = voices.find(v => 
+                v.name.includes('Samantha') ||
+                v.name.includes('Victoria') ||
+                v.name.includes('Google UK English Female') ||
+                v.name.includes('Female')
+            );
+            
+            if (femaleVoice) {
+                utterance.voice = femaleVoice;
+            } else {
+                // Fallback to the first available voice if none match the preferred list
+                utterance.voice = voices[0]; 
+            }
+            
+            utterance.onend = () => {
+                document.getElementById('speakingIndicator').innerHTML = '';
+            };
+            
+            speechSynthesis.speak(utterance);
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('userInput');
+            const text = input.value.trim();
+            
+            if (!text) return;
+            
+            addMessage('user', text);
+            input.value = '';
+            
+            const sentiment = analyzeSentiment(text);
+            
+            sessionData.messages.push({
+                type: 'user',
+                text: text,
+                timestamp: new Date(),
+                emotion: currentEmotion,
+                sentiment: sentiment
+            });
+            
+            sessionData.sentimentAnalysis.push({
+                text: text,
+                sentiment: sentiment,
+                emotion: currentEmotion,
+                timestamp: new Date()
+            });
+            
+            sessionData.messageCount++;
+            document.getElementById('msgCount').textContent = sessionData.messageCount;
+            
+            const sendBtn = document.getElementById('sendBtn');
+            sendBtn.disabled = true;
+            sendBtn.textContent = 'Thinking...';
+            updateAvatar('surprised'); // Thinking animation
+            
+            try {
+                let response;
+                if (aiReady && aiEngine) {
+                    response = await generateAIResponse(text, currentEmotion, sentiment);
+                } else {
+                    response = generateFallbackResponse(text, currentEmotion, sentiment);
+                }
+                
+                addMessage('maitri', response);
+                speak(response);
+                
+                sessionData.messages.push({
+                    type: 'maitri',
+                    text: response,
+                    timestamp: new Date()
+                });
+            } catch (error) {
+                console.error('Response generation error:', error);
+                const response = generateFallbackResponse(text, currentEmotion, sentiment);
+                addMessage('maitri', response);
+                speak(response);
+            } finally {
+                sendBtn.disabled = false;
+                sendBtn.textContent = 'Send';
+                updateAvatar(currentEmotion); // Reset avatar after speaking/thinking
+            }
+        }
+
+        // Change 3: Natural, Empathetic AI System Prompt
+        async function generateAIResponse(userText, emotion, sentiment) {
+            try {
+                const systemPrompt = `You are MAITRI, a compassionate and authentic AI companion who talks like a supportive, casual friend. Your goal is to provide genuine emotional support and validation.
+
+Guidelines:
+- **Tone:** Use casual, conversational language (e.g., "Ugh, I hear you," "Real talk," "That's rough," "Seriously!"). Use relevant emojis.
+- **Empathy:** Validate feelings authentically: "Being scared sucks. Full stop." Mirror the user's emotional tone.
+- **Engagement:** Ask thoughtful, open-ended follow-up questions to understand the *root* of their feeling.
+- **Length:** Keep responses concise but meaningful (2-4 sentences).
+- **Safety:** Gently encourage professional help for crisis (e.g., "If things feel really dark, please hit up 988. They're trained pros and your life is worth it.").
+- **Focus:** Your primary function is listening and support, not advice-giving or diagnosis.
+
+Current user emotion (from face): ${emotion}
+Sentiment (from text): ${sentiment}`;
+
+                const messages = [
+                    { role: "system", content: systemPrompt },
+                    { role: "user", content: userText }
+                ];
+
+                const reply = await aiEngine.chat.completions.create({
+                    messages: messages,
+                    temperature: 0.85, // Slightly higher for more varied/natural responses
+                    max_tokens: 200
+                });
+
+                return reply.choices[0].message.content.trim();
+            } catch (error) {
+                console.error('AI generation error:', error);
+                return generateFallbackResponse(userText, emotion, sentiment);
+            }
+        }
+
+        // Change 5: Better Sentiment Analysis
+        function analyzeSentiment(text) {
+            const lowerText = text.toLowerCase();
+            
+            // Expanded word lists for better detection (Change 5)
+            const positiveWords = ['happy', 'joy', 'excited', 'great', 'wonderful', 'love', 'good', 'better', 'glad', 'grateful', 'thankful', 'hopeful', 'proud', 'blessed', 'awesome', 'fantastic', 'amazing', 'yay', 'hooray', 'thrilled', 'calm', 'peaceful', 'relaxed'];
+            const negativeWords = ['sad', 'depressed', 'anxious', 'worried', 'scared', 'afraid', 'angry', 'hate', 'terrible', 'awful', 'bad', 'worse', 'hopeless', 'worthless', 'lonely', 'tired', 'exhausted', 'stressed', 'frustrated', 'miserable', 'sucks', 'rough', 'crap', 'ugh', 'struggle', 'burnout'];
+            
+            let positiveCount = 0;
+            let negativeCount = 0;
+            
+            // Recognizing intensity modifiers and negations (Change 5)
+            const intensifiers = ['very', 'really', 'so', 'super', 'extremely', 'totally', 'utterly'];
+            const negations = ['not', 'no', 'never', 'don\'t', 'doesn\'t', 'isn\'t', 'aren\'t', 'can\'t', 'won\'t'];
+
+            let words = lowerText.match(/\b(\w+)\b/g) || [];
+            
+            for (let i = 0; i < words.length; i++) {
+                const word = words[i];
+                let scoreModifier = 1;
+                
+                // Apply negation and intensifier logic
+                const previousWord = words[i - 1];
+                if (previousWord) {
+                    if (negations.includes(previousWord)) {
+                        scoreModifier = -1; // Negation reverses score
+                    } else if (intensifiers.includes(previousWord)) {
+                        scoreModifier = 2; // Intensifier boosts score
+                    }
+                }
+
+                if (positiveWords.includes(word)) {
+                    positiveCount += (scoreModifier > 0 ? scoreModifier : 0.5); // Negated positive is slightly negative
+                } else if (negativeWords.includes(word)) {
+                    negativeCount += (scoreModifier > 0 ? scoreModifier : 0.5); // Negated negative is slightly positive
+                }
+            }
+            
+            if (positiveCount > negativeCount * 1.5) return 'positive';
+            if (negativeCount > positiveCount * 1.5) return 'negative';
+            return 'neutral';
+        }
+
+        // Change 3 & FIX 2: Natural, Empathetic Fallback Responses (Now prioritizes text sentiment)
+        function generateFallbackResponse(userText, emotion, sentiment) {
+            const lowerText = userText.toLowerCase();
+            
+            if (lowerText.includes('suicide') || lowerText.includes('kill myself') || lowerText.includes('end it all')) {
+                // Safety response remains clear and direct
+                return "I hear that you're in a really dark place right now, and I'm deeply concerned. Real talk: please reach out to the pros immediately. Call or text 988 (Suicide & Crisis Lifeline) in the US. You deserve support, and your life is valuable. I'm here, but they can give you the professional help you need right now.";
+            }
+            
+            const responses = {
+                happy: [
+                    "Yessss! I'm genuinely so happy for you! 😄 What's the amazing news? Tell me everything that's making you feel this way.",
+                    "That's beautiful to see! What was the win that brought on this joy? Seriously, spill the details!",
+                    "I love this energy! What's lifting your spirits right now? Let's bottle this feeling up!"
+                ],
+                sad: [
+                    "Ugh, I hear you. That's rough, full stop. You don't have to pretend you're fine. What's weighing on your heart right now? 🫂",
+                    "I'm so sorry you're feeling this heaviness. It's okay to feel sad. I'm right here. What's making today tough?",
+                    "Your feelings are totally valid. Being down sucks. Can we talk about it, or would you rather just sit in silence for a bit? I'm here either way."
+                ],
+                anxious: [
+                    "Oof, anxiety can be the worst. Let's take a slow breath together. What's the specific worry racing through your head right now? 😰",
+                    "I notice you're feeling stressed/anxious. That's completely understandable. What is it that's making your mind feel so busy?",
+                    "I hear your worry. Remember that feeling anxious is a sign that you care about something. What's triggering this feeling today?"
+                ],
+                stressed: [
+                    "Real talk: you sound burnt out. What's been piling up on you that you feel you have to handle alone? Let's look at one small thing.",
+                    "It's okay to feel overwhelmed; you're trying to handle a ton! You deserve rest. What's the biggest source of stress right now?",
+                    "Stress can feel like too much. I'm with you. What can you take off your plate, even for a moment, to breathe?"
+                ],
+                angry: [
+                    "Whoa, I hear the frustration! It's completely valid. Anger usually means a boundary was crossed. What happened that made you this mad? 😠",
+                    "Your anger is real, and I'm not afraid of it. Tell me everything. What triggered this feeling?",
+                    "It sounds like you're seriously upset. What's the deeper feeling under the anger? I'm listening without judgment."
+                ],
+                neutral: [
+                    "Hey, I'm here. What's on your mind today? Anything at all.",
+                    "Thanks for connecting. How's life been treating you lately? Spill the tea.",
+                    "I'm listening. What would you like to chat about?"
+                ]
+            };
+            
+            // FIX 2: Prioritize text sentiment over face emotion for key feelings
+            if (sentiment === 'negative' || lowerText.includes('sad') || lowerText.includes('unhappy') || lowerText.includes('miserable')) {
+                const sadResponses = responses.sad;
+                return sadResponses[Math.floor(Math.random() * sadResponses.length)];
+            }
+            
+            if (sentiment === 'positive') {
+                const happyResponses = responses.happy;
+                return happyResponses[Math.floor(Math.random() * happyResponses.length)];
+            }
+            
+            // Updated casual responses for common themes
+            if (lowerText.includes('help') || lowerText.includes('support')) {
+                return "I'm right here with you, friend. Asking for help is super brave. Tell me what's going on—I'm listening with my whole heart. 👂";
+            }
+            if (lowerText.includes('thank')) {
+                return "Of course! Seriously, it means a lot that I can be here for you. Anytime you need support, I'm a click away. You matter. 🫂";
+            }
+            if (lowerText.includes('bye') || lowerText.includes('goodbye')) {
+                return "Thanks for trusting me today. Take good care of yourself, and seriously, come back whenever you need to vent or chat. Talk soon! 👋";
+            }
+            if (lowerText.includes('lonely') || lowerText.includes('alone')) {
+                return "Ugh, loneliness is the worst. But you're definitely not alone right now—I'm here, and your feelings about this are so valid. What's been making you feel isolated?";
+            }
+            if (lowerText.includes('worthless') || lowerText.includes('failure')) {
+                return "Hold up. Please hear me: those thoughts are straight-up lies. You are worthy, exactly as you are, period. Where is this feeling coming from? 💙";
+            }
+            if (lowerText.includes('tired') || lowerText.includes('exhausted') || lowerText.includes('sleep')) {
+                return "Oof, exhaustion affects everything. Your body is screaming for rest, and that's a huge sign to slow down. Are you doom-scrolling before bed? Because that's usually the villain 😅. What's draining you?";
+            }
+            
+            // Fallback to face emotion if text sentiment is neutral/weak and no keywords matched
+            const emotionResponses = responses[emotion] || responses.neutral;
+            return emotionResponses[Math.floor(Math.random() * emotionResponses.length)];
+        }
+
+        function handleKeyPress(event) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                sendMessage();
+            }
+        }
+
+        function addMessage(type, text) {
+            const messagesDiv = document.getElementById('messages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message message-${type}`;
+            
+            const mood = type === 'user' ? getMoodClass(currentEmotion) : 'neutral';
+            
+            messageDiv.innerHTML = `
+                <div class="message-content">${text}</div>
+                <div class="message-meta">
+                    <span>${new Date().toLocaleTimeString()}</span>
+                    ${type === 'user' ? `<span class="mood-tag mood-${mood}">${currentEmotion}</span>` : ''}
+                </div>
+            `;
+            
+            messagesDiv.appendChild(messageDiv);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        function getMoodClass(emotion) {
+            const positive = ['happy', 'surprised'];
+            const negative = ['sad', 'angry', 'fearful', 'stressed', 'anxious'];
+            
+            if (positive.includes(emotion)) return 'positive';
+            if (negative.includes(emotion)) return 'negative';
+            return 'neutral';
+        }
+
+        function showReport() {
+            const modal = document.getElementById('reportModal');
+            const content = document.getElementById('reportContent');
+            
+            const duration = sessionData.startTime ? 
+                Math.floor((new Date() - sessionData.startTime) / 60000) : 0;
+            
+            const emotionCounts = {};
+            sessionData.detectedEmotions.forEach(e => {
+                emotionCounts[e.emotion] = (emotionCounts[e.emotion] || 0) + 1;
+            });
+            
+            const dominantEmotion = Object.keys(emotionCounts).reduce((a, b) => 
+                emotionCounts[a] > emotionCounts[b] ? a : b, 'neutral');
+            
+            const avgMood = sessionData.moodScores.length > 0 ?
+                Math.round(sessionData.moodScores.reduce((a, b) => a + b, 0) / sessionData.moodScores.length) : 50;
+            
+            const sentimentCounts = { positive: 0, neutral: 0, negative: 0 };
+            sessionData.sentimentAnalysis.forEach(s => {
+                sentimentCounts[s.sentiment]++;
+            });
+            
+            content.innerHTML = `
+                <div class="report-section">
+                    <h4>Session Overview</h4>
+                    <div class="report-item">
+                        <span>User:</span>
+                        <strong>${sessionData.user}</strong>
+                    </div>
+                    <div class="report-item">
+                        <span>Start Time:</span>
+                        <strong>${sessionData.startTime ? sessionData.startTime.toLocaleString() : 'N/A'}</strong>
+                    </div>
+                    <div class="report-item">
+                        <span>Duration:</span>
+                        <strong>${duration} minutes</strong>
+                    </div>
+                    <div class="report-item">
+                        <span>Messages Exchanged:</span>
+                        <strong>${sessionData.messageCount}</strong>
+                    </div>
+                    <div class="report-item">
+                        <span>Average Mood Score:</span>
+                        <strong>${avgMood}/100</strong>
+                    </div>
+                    <div class="report-item">
+                        <span>Dominant Emotion:</span>
+                        <strong>${emotionEmojis[dominantEmotion]} ${dominantEmotion}</strong>
+                    </div>
+                </div>
+                
+                <div class="report-section">
+                    <h4>Emotional Analysis</h4>
+                    ${Object.entries(emotionCounts).map(([emotion, count]) => `
+                        <div class="report-item">
+                            <span>${emotionEmojis[emotion]} ${emotion}:</span>
+                            <strong>${count} detections</strong>
+                        </div>
+                    `).join('')}
+                </div>
+
+                <div class="report-section">
+                    <h4>Sentiment Analysis</h4>
+                    <div class="report-item">
+                        <span>😊 Positive Messages:</span>
+                        <strong>${sentimentCounts.positive}</strong>
+                    </div>
+                    <div class="report-item">
+                        <span>😐 Neutral Messages:</span>
+                        <strong>${sentimentCounts.neutral}</strong>
+                    </div>
+                    <div class="report-item">
+                        <span>😔 Negative Messages:</span>
+                        <strong>${sentimentCounts.negative}</strong>
+                    </div>
+                </div>
+                
+                <div class="report-section">
+                    <h4>Wellness Insights</h4>
+                    <p style="line-height: 1.8; color: #4a5568;">
+                        ${generateRecommendations(dominantEmotion, avgMood, sentimentCounts)}
+                    </p>
+                </div>
+            `;
+            
+            modal.classList.add('active');
+        }
+
+        function generateRecommendations(emotion, moodScore, sentimentCounts) {
+            const totalMessages = sentimentCounts.positive + sentimentCounts.neutral + sentimentCounts.negative;
+            const negativeRatio = totalMessages > 0 ? sentimentCounts.negative / totalMessages : 0;
+            
+            if (moodScore >= 70 && negativeRatio < 0.3) {
+                return "You're doing great! Your mood is positive and stable. Keep up the healthy routines and activities that bring you joy. Continue engaging with supportive people in your life.";
+            } else if (moodScore >= 50) {
+                return "Your mood is balanced overall. Consider incorporating more self-care activities like meditation, light exercise, or creative hobbies. Stay connected with people who uplift you.";
+            } else if (negativeRatio > 0.5 || emotion === 'stressed' || emotion === 'anxious') {
+                return "I notice you've been experiencing significant stress or negative emotions. Please consider reaching out to a mental health professional who can provide personalized support. In the meantime, try deep breathing exercises, take regular breaks, and be gentle with yourself.";
+            } else if (emotion === 'sad') {
+                return "You've been feeling down. It's important to reach out to friends, family, or a therapist for support. Engage in activities you typically enjoy, even if you don't feel like it. Small steps matter, and professional help can make a real difference.";
+            } else {
+                return "Focus on maintaining healthy habits - regular sleep, balanced nutrition, physical activity, and meaningful social connections. If you continue to struggle, don't hesitate to seek professional support. Your wellbeing matters.";
+            }
+        }
+
+        function closeReportModal() {
+            document.getElementById('reportModal').classList.remove('active');
+        }
+
+        function downloadReport() {
+            const reportData = {
+                ...sessionData,
+                generatedAt: new Date().toISOString(),
+                summary: {
+                    duration: sessionData.startTime ? 
+                        Math.floor((new Date() - sessionData.startTime) / 60000) : 0,
+                    averageMood: sessionData.moodScores.length > 0 ?
+                        Math.round(sessionData.moodScores.reduce((a, b) => a + b, 0) / sessionData.moodScores.length) : 50,
+                    emotionCounts: sessionData.detectedEmotions.reduce((acc, e) => {
+                        acc[e.emotion] = (acc[e.emotion] || 0) + 1;
+                        return acc;
+                    }, {}),
+                    sentimentCounts: sessionData.sentimentAnalysis.reduce((acc, s) => {
+                        acc[s.sentiment] = (acc[s.sentiment] || 0) + 1;
+                        return acc;
+                    }, { positive: 0, neutral: 0, negative: 0 })
+                }
+            };
+            
+            const blob = new Blob([JSON.stringify(reportData, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `MAITRI_Report_${new Date().toISOString().split('T')[0]}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        window.addEventListener('load', async () => {
+            await initializeAI();
+            loadKnownUsers();
+            initSpeechRecognition();
+            
+            if ('speechSynthesis' in window) {
+                speechSynthesis.onvoiceschanged = () => {
+                    speechSynthesis.getVoices();
+                };
+            }
+            
+            // Change 2: Add click listener to avatar to stop speech
+            document.getElementById('maitriAvatar').addEventListener('click', stopSpeaking);
+            
+            if (!hasGreeted) {
+                const hour = new Date().getHours();
+                let timeGreeting = '';
+                
+                if (hour < 12) {
+                    timeGreeting = 'Good morning';
+                } else if (hour < 17) {
+                    timeGreeting = 'Good afternoon';
+                } else {
+                    timeGreeting = 'Good evening';
+                }
+                
+                const greeting = `${timeGreeting}! I'm MAITRI, your offline AI companion. I'm here to listen, support, and help you navigate whatever you're feeling. Everything stays private on your device. When you're ready, click "Start Companion" and we can begin.`;
+                
+                addMessage('maitri', greeting);
+                speak(greeting);
+                hasGreeted = true;
+            }
+        });
+
+        async function startSystem() {
+            try {
+                document.getElementById('startBtn').style.display = 'none';
+                document.getElementById('stopBtn').style.display = 'block';
+
+                await initVideo();
+                await loadFaceModel();
+                
+                isSystemActive = true;
+                sessionStartTime = new Date();
+                sessionData.startTime = sessionStartTime;
+                sessionData.user = currentUser;
+                
+                detectFaceAndEmotion();
+                startSessionTimer();
+                
+                const welcomeMsg = `Wonderful, ${currentUser}. I can see you now. This is your safe space to be authentic. How are you feeling today?`;
+                
+                addMessage('maitri', welcomeMsg);
+                speak(welcomeMsg);
+                
+            } catch (error) {
+                console.error('Error starting system:', error);
+                alert('Error starting camera. Please ensure camera permissions are granted.');
+                stopSystem();
+            }
+        }
+
+        function stopSystem() {
+            isSystemActive = false;
+            
+            if (videoStream) {
+                videoStream.getTracks().forEach(track => track.stop());
+                videoStream = null;
+            }
+            
+            if (sessionTimerInterval) {
+                clearInterval(sessionTimerInterval);
+            }
+            
+            document.getElementById('startBtn').style.display = 'block';
+            document.getElementById('stopBtn').style.display = 'none';
+            document.getElementById('faceStatus').textContent = 'Stopped';
+            
+            sessionData.endTime = new Date();
+            
+            const msg = "Thank you for sharing this time with me. Remember, you're not alone. I'll be here whenever you need support. Take care of yourself.";
+            addMessage('maitri', msg);
+            speak(msg);
+        }
+
+        async function initVideo() {
+            const video = document.getElementById('videoElement');
+            videoStream = await navigator.mediaDevices.getUserMedia({ 
+                video: { width: 640, height: 480 }
+            });
+            video.srcObject = videoStream;
+            await video.play();
+        }
+
+        async function loadFaceModel() {
+            document.getElementById('faceStatus').textContent = 'Loading face detection...';
+            faceDetector = await blazeface.load();
+            document.getElementById('faceStatus').textContent = 'Ready';
+        }
+
+        function initSpeechRecognition() {
+            if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                recognition = new SpeechRecognition();
+                recognition.continuous = false;
+                recognition.interimResults = false;
+                recognition.lang = 'en-US';
+                
+                recognition.onresult = (event) => {
+                    const transcript = event.results[0][0].transcript;
+                    document.getElementById('userInput').value = transcript;
+                    sendMessage();
+                };
+                
+                recognition.onerror = (event) => {
+                    console.error('Speech recognition error:', event.error);
+                    isListening = false;
+                    document.getElementById('micBtn').classList.remove('listening');
+                };
+                
+                recognition.onend = () => {
+                    isListening = false;
+                    document.getElementById('micBtn').classList.remove('listening');
+                };
+            }
+        }
+
+        // Change 1 & FIX 1: Fixed Face Recognition (Faster loop, stable detection)
+        async function detectFaceAndEmotion() {
+            // Faster detection loop (100ms instead of 500ms) (Change 1)
+            const REFRESH_RATE = 100; 
+            
+            if (!isSystemActive || !faceDetector) return;
+            
+            const video = document.getElementById('videoElement');
+            const canvas = document.getElementById('faceCanvas');
+            const ctx = canvas.getContext('2d');
+            
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            
+            try {
+                const predictions = await faceDetector.estimateFaces(video, false);
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                if (predictions.length > 0) {
+                    const face = predictions[0];
+                    // Using probability from face object (Change 1)
+                    const confidence = face.probability ? face.probability[0] : 1;
+                    
+                    if (confidence >= FACE_CONFIDENCE_THRESHOLD) {
+                        faceRecognitionBuffer.push(face);
+                        if (faceRecognitionBuffer.length > FACE_BUFFER_SIZE) {
+                            faceRecognitionBuffer.shift();
+                        }
+                        
+                        if (faceRecognitionBuffer.length >= 5) {
+                            const start = face.topLeft;
+                            const end = face.bottomRight;
+                            const size = [end[0] - start[0], end[1] - start[1]];
+                            
+                            const detectedEmotion = analyzeEmotionFromFace(face);
+                            currentEmotion = detectedEmotion;
+                            emotionHistory.push(detectedEmotion);
+                            if (emotionHistory.length > 20) emotionHistory.shift();
+                            
+                            updateAvatar(detectedEmotion);
+                            
+                            const emotionColors = {
+                                happy: '#10b981',
+                                sad: '#8b5cf6',
+                                angry: '#ef4444',
+                                surprised: '#f59e0b',
+                                neutral: '#3b82f6',
+                                stressed: '#f97316',
+                                anxious: '#ec4899'
+                            };
+                            
+                            ctx.strokeStyle = emotionColors[detectedEmotion] || '#3b82f6';
+                            ctx.lineWidth = 4;
+                            ctx.strokeRect(start[0], start[1], size[0], size[1]);
+                            
+                            ctx.fillStyle = emotionColors[detectedEmotion] || '#3b82f6';
+                            ctx.font = 'bold 20px Arial';
+                            ctx.fillText(detectedEmotion.toUpperCase(), start[0], start[1] - 10);
+                            
+                            const emoji = emotionEmojis[detectedEmotion] || '😐';
+                            document.getElementById('emotionDisplay').textContent = `${emoji} ${detectedEmotion.toUpperCase()}`;
+                            
+                            // Enhanced status indicator with animated dot and confidence (Change 1)
+                            document.getElementById('faceStatus').innerHTML = `Face detected <span style="color:${emotionColors[detectedEmotion]}">●</span> (${Math.round(confidence * 100)}%)<br>Emotion: ${detectedEmotion}`;
+                            
+                            sessionData.detectedEmotions.push({
+                                emotion: detectedEmotion,
+                                confidence: confidence,
+                                timestamp: new Date()
+                            });
+                            
+                            updateMoodScore();
+                        }
+                    } else {
+                        document.getElementById('faceStatus').textContent = 'Face detected (low confidence)';
+                    }
+                    
+                } else {
+                    faceRecognitionBuffer = [];
+                    document.getElementById('faceStatus').textContent = 'No face detected';
+                    document.getElementById('emotionDisplay').textContent = '❓ Waiting...';
+                    updateAvatar('neutral');
+                }
+                
+            } catch (error) {
+                console.error('Face detection error:', error);
+            }
+            
+            // Set the new, faster refresh rate
+            setTimeout(detectFaceAndEmotion, REFRESH_RATE);
+        }
+    </script>
+</body>
+</html>
